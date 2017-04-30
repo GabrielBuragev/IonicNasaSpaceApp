@@ -1,0 +1,32 @@
+<ion-view>
+    <ion-header-bar class="bar bar-subheader item-input-inset">
+        <button class="button button-light icon ion-camera" data-ng-click="camera()"></button>
+        <label class="item-input-wrapper">
+            <i class="icon ion-ios-search placeholder-icon"></i>
+            <input type="text" placeholder="Search beaches by City.." data-ng-model="searchInput"  />
+        </label>
+        <button class="button button-light icon ion-search" data-ng-click="search()">Search</button>
+    </ion-header-bar>
+    <ion-content class="has-subheader">
+        <div class="text-center" data-ng-if="beaches.length == 0 && !beachesLoaded" style="padding-top: 10px;">Nearby Beaches are Loading... Please wait!</div>
+        <div class="list" data-ng-if="beachesLoaded && beaches.length > 0">
+            <a class="item item-thumbnail-left" href="#/beach/{{ beach.index }}" data-ng-repeat="beach in beaches">
+                <img data-ng-src="{{ beach.photo }}" ng-if="beach.photo" />
+                <img src="http://placehold.it/80x80" ng-if="!beach.photo" />
+                <h2>{{ beach.name }}</h2>
+                <p>
+                    Rating:
+                    <span data-ng-show="beach.rating">
+                        {{ beach.rating }}
+                    </span>
+                    <span data-ng-hide="beach.rating">
+                        N/A
+                    </span>
+                </p>
+            </a>
+        </div>
+        <div class="text-center" data-ng-if="beachesLoaded && beaches.length == 0" style="padding-top: 10px;">
+            <i class="icon ion-sad" style="font-size: 25px;"></i><br /> There are no Beaches around you, try searching by City name.
+        </div>
+    </ion-content>
+</ion-view>

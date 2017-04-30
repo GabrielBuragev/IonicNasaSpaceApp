@@ -1,85 +1,205 @@
-// Ionic Starter App
+(function() {
 
-// angular.module is a global place for creating, registering and retrieving Angular modules
-// 'starter' is the name of this angular module example (also set in a <body> attribute in index.html)
-// the 2nd parameter is an array of 'requires'
-// 'starter.services' is found in services.js
-// 'starter.controllers' is found in controllers.js
-angular.module('starter', ['ionic', 'starter.controllers', 'starter.services'])
+    var app = angular.module('MongoBay', ['ionic', 'ngResource', 'ngCordova']);
+    var backend = 'http://192.168.100.18:8080/';
+    /**
+     * Controllers
+     */
+    app.controller('MainController', function($scope, $rootScope, $log, $cordovaGeolocation, BeachesService, $cordovaCamera) {
+        $rootScope.title = 'Let\'s go to the Beach!';
+        $scope.beaches = [];
+        $scope.beachesLoaded = false;
 
-.run(function($ionicPlatform) {
-  $ionicPlatform.ready(function() {
-    // Hide the accessory bar by default (remove this to show the accessory bar above the keyboard
-    // for form inputs)
-    if (window.cordova && window.cordova.plugins && window.cordova.plugins.Keyboard) {
-      cordova.plugins.Keyboard.hideKeyboardAccessoryBar(true);
-      cordova.plugins.Keyboard.disableScroll(true);
+        $cordovaGeolocation.getCurrentPosition().then(function(data) {
 
-    }
-    if (window.StatusBar) {
-      // org.apache.cordova.statusbar required
-      StatusBar.styleDefault();
-    }
-  });
-})
+            if (BeachesService.nearByBeaches.length === 0) {
 
-.config(function($stateProvider, $urlRouterProvider) {
+                BeachesService.getBeaches({
+                    lat: data.coords.latitude,
+                    long: data.coords.longitude
+                }).then(function(data) {
+                    data.forEach(function(e, i) {
+                        e.index = i;
+                        BeachesService.nearByBeaches.push(e);
+                    });
+                    $scope.beaches = BeachesService.nearByBeaches;
+                    $scope.beachesLoaded = true;
+                    BeachesService.beaches = $scope.beaches;
+                });
+            } else {
+                $scope.beaches = BeachesService.nearByBeaches;
+                $scope.beachesLoaded = true;
+            }
 
-  // Ionic uses AngularUI Router which uses the concept of states
-  // Learn more here: https://github.com/angular-ui/ui-router
-  // Set up the various states which the app can be in.
-  // Each state's controller can be found in controllers.js
-  $stateProvider
+        });
 
-  // setup an abstract state for the tabs directive
-    .state('tab', {
-    url: '/tab',
-    abstract: true,
-    templateUrl: 'templates/tabs.html'
-  })
+        $scope.searchInput = '';
 
-  // Each tab has its own nav history stack:
+        /**
+         * Camera
+         */
+        $scope.camera = function() {
+            // console.log(Camera);
+            console.log(navigator);
+            var options = {
+                destinationType: navigator.camera.DATA_URL,
+                sourceType: navigator.camera.PictureSourceType.CAMERA,
+                allowEdit: true,
+                encodingType: navigator.camera.EncodingType.JPEG,
+                popoverOptions: navigator.camera.PopoverArrowDirection.ARROW_UP,
+                saveToPhotoAlbum: false,
+                correctOrientation: true
+            };
 
-  .state('tab.dash', {
-    url: '/dash',
-    views: {
-      'tab-dash': {
-        templateUrl: 'templates/tab-dash.html',
-        controller: 'DashCtrl'
-      }
-    }
-  })
+            $cordovaCamera.getPicture(options).then(function(imgData) {
+                console.log(imgData);
+                console.log('got Picture');
+            });
 
-  .state('tab.chats', {
-      url: '/chats',
-      views: {
-        'tab-chats': {
-          templateUrl: 'templates/tab-chats.html',
-          controller: 'ChatsCtrl'
+        };
+
+        /**
+         * Search
+         */
+        $scope.search = function() {
+
+            if ($scope.searchInput.length === 0) {
+                $scope.beaches = BeachesService.nearByBeaches;
+                return;
+            }
+
+            BeachesService.getBeaches({
+                query: $scope.searchInput
+            }).then(function(data) {
+
+                BeachesService.citySearchBeaches = [];
+                data.forEach(function(e, i) {
+                    e.index = i;
+                    BeachesService.citySearchBeaches.push(e);
+                });
+
+                $scope.beaches = BeachesService.citySearchBeaches;
+                $scope.beachesLoaded = true;
+                console.log($scope.beaches);
+                console.log($scope.beachesLoaded);
+                BeachesService.beaches = $scope.beaches;
+            });
+
+        };
+
+    });
+    app.controller('BeachController', function($scope, $rootScope, $state, $stateParams, $log, BeachesService, WeatherService) {
+
+        var id = parseInt($stateParams.id);
+
+        if (BeachesService.beaches.length === 0) {
+            console.log('2');
+            return $state.go('main');
         }
-      }
-    })
-    .state('tab.chat-detail', {
-      url: '/chats/:chatId',
-      views: {
-        'tab-chats': {
-          templateUrl: 'templates/chat-detail.html',
-          controller: 'ChatDetailCtrl'
-        }
-      }
-    })
 
-  .state('tab.account', {
-    url: '/account',
-    views: {
-      'tab-account': {
-        templateUrl: 'templates/tab-account.html',
-        controller: 'AccountCtrl'
-      }
-    }
-  });
+        $rootScope.title = BeachesService.beaches[id].name;
 
-  // if none of the above states are matched, use this as the fallback
-  $urlRouterProvider.otherwise('/tab/dash');
+        var latLng = new google.maps.LatLng(BeachesService.beaches[id].location.latitude, BeachesService.beaches[id].location.longtitude);
+        console.log(latLng);
 
-});
+        var mapOptions = {
+            center: latLng,
+            zoom: 15,
+            mapTypeId: google.maps.MapTypeId.ROADMAP
+        };
+
+        $scope.map = new google.maps.Map(document.getElementById("map"), mapOptions);
+
+
+        google.maps.event.addListenerOnce($scope.map, 'idle', function() {
+
+            var marker = new google.maps.Marker({
+                map: $scope.map,
+                animation: google.maps.Animation.DROP,
+                position: latLng
+            });
+
+            var infoWindow = new google.maps.InfoWindow({
+                content: BeachesService.beaches[id].name
+            });
+
+            google.maps.event.addListener(marker, 'click', function() {
+                infoWindow.open($scope.map, marker);
+            });
+
+        });
+
+        $scope.weather = [];
+        WeatherService.getWeather(BeachesService.beaches[id].location.latitude, BeachesService.beaches[id].location.longtitude).then(function(data) {
+            $scope.weather = data;
+            // console.log($scope.weather)
+            console.log($scope.weather);
+        });
+
+    });
+    /**
+     * Services
+     */
+    app.service('BeachesService', function($resource, $q) {
+
+        this.beaches = [];
+        this.nearByBeaches = [];
+        this.citySearchBeaches = [];
+
+        this.getBeaches = function(params) {
+            var d = $q.defer();
+
+            var Request = $resource(backend + 'getBeaches');
+
+            Request.query(params, function(data) {
+                if (data.length > 0) {
+                    d.resolve(data);
+                } else {
+                    d.reject();
+                }
+            });
+
+            return d.promise;
+        };
+
+    });
+
+    app.service('WeatherService', function($resource) {
+
+        this.getWeather = function(lat, long) {
+
+            var Request = $resource(backend + 'getWeather');
+
+            return Request.get({
+                lat: lat,
+                long: long
+            }).$promise;
+
+        };
+
+    });
+
+    /**
+     * Routes
+     */
+    app.run(function($ionicPlatform) {
+            $ionicPlatform.ready(function() {
+                // When the website is loaded
+            });
+        })
+        .config(function($stateProvider, $urlRouterProvider) {
+            $stateProvider
+                .state('main', {
+                    url: '/',
+                    templateUrl: 'templates/main.template.html',
+                    controller: 'MainController'
+                })
+                .state('beach', {
+                    url: '/beach/:id',
+                    templateUrl: 'templates/beach.template.html',
+                    controller: 'BeachController'
+                });
+            $urlRouterProvider.otherwise('/');
+        });
+
+}).call(this);
